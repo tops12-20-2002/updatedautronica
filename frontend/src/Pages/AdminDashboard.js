@@ -1180,7 +1180,7 @@ function AdminDashboard() {
                           <td>{o.client || o.customer_name}</td>
                           <td>{o.vehicleModel || o.model}</td>
                           <td>{o.plate || o.plate_no}</td>
-                          <td>?{Number(o.total || o.total_amount || 0).toFixed(2)}</td>
+                          <td>₱{Number(o.total || o.total_amount || 0).toFixed(2)}</td>
                           <td>
                             <span className={o.status === "Pending" ? "status-tag yellow" : o.status === "In Progress" ? "status-tag blue" : "status-tag green"}>{o.status}</span>
                           </td>
