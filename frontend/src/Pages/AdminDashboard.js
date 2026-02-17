@@ -34,6 +34,11 @@ function AdminDashboard() {
     confirmLabel: "Delete",
     onConfirm: null
   });
+  const [infoDialog, setInfoDialog] = useState({
+    open: false,
+    title: "",
+    message: ""
+  });
   const [jobStatusFilter, setJobStatusFilter] = useState("All");
   const [isJobReadOnly, setIsJobReadOnly] = useState(false);
   const [inventorySearch, setInventorySearch] = useState("");
@@ -221,7 +226,16 @@ function AdminDashboard() {
   const addPartRow = () => {
     setParts((prev) => [...prev, { description: "", qty: "", unit: "", price: "", unitPrice: "" }]);
   };
+
+  const isPartOutOfStock = (product) => {
+    const stock = parseFloat(product?.stocks ?? product?.quantity ?? 0) || 0;
+    const statusText = String(product?.status || "").trim().toLowerCase();
+    return stock <= 0 || statusText === "out of stock";
+  };
+
   const updatePart = (index, field, value, options = {}) => {
+    let outOfStockMessage = "";
+
     setParts(prev => {
       const copy = [...prev];
       const currentRow = { ...copy[index] };
@@ -240,6 +254,16 @@ function AdminDashboard() {
         );
 
         if (product) {
+          if (isPartOutOfStock(product)) {
+            outOfStockMessage = `Part "${product.code} - ${product.name}" is out of stock.`;
+            currentRow.unit = "";
+            currentRow.baseUnitPrice = "";
+            currentRow.unitPrice = "";
+            currentRow.price = "";
+            copy[index] = currentRow;
+            return copy;
+          }
+
           const baseUnit = parseFloat(product.price || 0);
           const multiplier = getCustomerMultiplier(customerType);
           const unit = baseUnit * multiplier;
@@ -283,6 +307,14 @@ function AdminDashboard() {
       copy[index] = currentRow;
       return copy;
     });
+
+    if (outOfStockMessage) {
+      setInfoDialog({
+        open: true,
+        title: "Out of Stock",
+        message: outOfStockMessage
+      });
+    }
   };
 
   useEffect(() => {
@@ -331,7 +363,7 @@ function AdminDashboard() {
   };
 
   const persistJobOrder = async (statusOverride = null) => {
-    if (!isJobFormValid()) return false;
+    if (!isJobFormValid()) return null;
 
     const orderData = {
       client: clientName,
@@ -372,15 +404,15 @@ function AdminDashboard() {
         resetJobForm();
         setShowJobOrderModal(false);
         setEditJobId(null);
-        return true;
+        return result.data || null;
       } else {
         alert(result.error || 'Failed to save job order');
-        return false;
+        return null;
       }
     } catch (error) {
       console.error('Error saving job order:', error);
       alert('Failed to save job order. Please try again.');
-      return false;
+      return null;
     }
   };
 
@@ -420,6 +452,14 @@ function AdminDashboard() {
       message: "",
       confirmLabel: "Delete",
       onConfirm: null
+    });
+  };
+
+  const closeInfoDialog = () => {
+    setInfoDialog({
+      open: false,
+      title: "",
+      message: ""
     });
   };
 
@@ -722,14 +762,26 @@ function AdminDashboard() {
 
     return {
       pageSize: "LETTER",
-      pageMargins: [40, 110, 40, 120],
+      pageMargins: [40, 170, 40, 120],
       header: {
         margin: [40, 20, 40, 0],
         stack: [
-          { image: logoBase64, width: 120, alignment: "center", margin: [0, 0, 0, 2] },
-          { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#0b5ed7" },
-          { text: "MAHARLIKA HIGHWAY SITIO BAGONG TULAY BRGY. BUKAL PAGBILAO QUEZON", style: "subheader", alignment: "center", color: "#0b5ed7" },
-          { text: "SMART: 09989990252   GLOBE: 09171874571", style: "subheader", alignment: "center", margin: [0, 0, 0, 10], color: "#0b5ed7" }
+          { image: logoBase64, width: 300, alignment: "center", margin: [0, 0, 0, 2] },
+          {
+            stack: [
+              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: -0.45, y: 0 }, margin: [0, 0, 0, -17] },
+              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: 0.45, y: 0 }, margin: [0, 0, 0, -17] },
+              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: 0, y: -0.45 }, margin: [0, 0, 0, -17] },
+              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: 0, y: 0.45 }, margin: [0, 0, 0, -17] },
+              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: -0.35, y: -0.35 }, margin: [0, 0, 0, -17] },
+              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: 0.35, y: -0.35 }, margin: [0, 0, 0, -17] },
+              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: -0.35, y: 0.35 }, margin: [0, 0, 0, -17] },
+              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: 0.35, y: 0.35 }, margin: [0, 0, 0, -17] },
+              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#c89b19" }
+            ]
+          },
+          { text: "MAHARLIKA HIGHWAY SITIO BAGONG TULAY BRGY. BUKAL PAGBILAO QUEZON", style: "subheader", alignment: "center", color: "#1e1e1e" },
+          { text: "SMART: 09989990252   GLOBE: 09171874571", style: "subheader", alignment: "center", margin: [0, 0, 0, 10], color: "#1e1e1e" }
         ]
       },
       content: [
@@ -838,18 +890,20 @@ function AdminDashboard() {
           ]
         };
       },
-      styles: { header: { fontSize: 16, bold: true }, subheader: { fontSize: 10 }, sectitle: { fontSize: 11, bold: true, color: "#0b5ed7", margin: [0, 5, 0, 5] } }
+      styles: { header: { fontSize: 16, bold: true }, subheader: { fontSize: 10, bold: true }, sectitle: { fontSize: 11, bold: true, color: "#0b5ed7", margin: [0, 5, 0, 5] } }
     };
   };
 
   const exportJobOrderPDF = async () => {
     const currentJob = editJobId !== null ? jobOrders.find(j => j.id === editJobId) : null;
     const rawJobNo = currentJob?.joNumber ?? currentJob?.job_order_no ?? jobOrderNo;
-    const formattedJobNo = formatJobOrderNo(rawJobNo);
 
-    const saved = await persistJobOrder("Completed");
-    if (!saved) return;
+    const savedOrder = await persistJobOrder("Completed");
+    if (!savedOrder) return;
     setStatus("Completed");
+
+    const savedRawJobNo = savedOrder?.joNumber ?? savedOrder?.job_order_no ?? rawJobNo;
+    const formattedJobNo = formatJobOrderNo(savedRawJobNo);
 
     const jobData = {
       joNumber: formattedJobNo,
@@ -1314,9 +1368,9 @@ function AdminDashboard() {
 
                 <hr />
                 <div className="totals">
-                  <p>Subtotal: ?{Number(subtotal).toFixed(2)}</p>
+                  <p>Subtotal: ₱{Number(subtotal).toFixed(2)}</p>
                   <p>
-                    Discount: ?
+                    Discount: ₱
                     <input
                       type="number"
                       min="0"
@@ -1328,7 +1382,7 @@ function AdminDashboard() {
                       disabled={isJobReadOnly}
                     />
                   </p>
-                  <p><b>Total: ?{Number(grandTotal).toFixed(2)}</b></p>
+                  <p><b>Total: ₱{Number(grandTotal).toFixed(2)}</b></p>
                 </div>
               </div>
 
@@ -1393,6 +1447,22 @@ function AdminDashboard() {
               <div className="product-modal-footer modal-actions">
                 <button className="cancel" onClick={closeConfirmDialog}>Cancel</button>
                 <button className="delete-btn" onClick={handleConfirmDialog}>{confirmDialog.confirmLabel}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {infoDialog.open && (
+          <div className="modal-container centered-modal" style={{ zIndex: 12000 }}>
+            <div className="modal-box product-modal" style={{ maxWidth: 460 }}>
+              <div className="product-modal-header">
+                <h2>{infoDialog.title}</h2>
+              </div>
+              <div className="product-modal-body">
+                <p>{infoDialog.message}</p>
+              </div>
+              <div className="product-modal-footer modal-actions">
+                <button className="save" onClick={closeInfoDialog}>OK</button>
               </div>
             </div>
           </div>
