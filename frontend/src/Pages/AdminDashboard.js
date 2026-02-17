@@ -736,7 +736,7 @@ function AdminDashboard() {
   };
 
   const buildPdfDocDefinition = async (jobData) => {
-    const logoBase64 = await loadBase64Image(process.env.PUBLIC_URL + "/AutronicasLogo.png");
+    const logoBase64 = await loadBase64Image(process.env.PUBLIC_URL + "/again.png");
 
     const serviceRows = (jobData.services || []).map((s) => {
       const { qty, unitPrice, total } = normalizePdfLineItem(s);
@@ -761,12 +761,12 @@ function AdminDashboard() {
     });
 
     return {
-      pageSize: "LETTER",
-      pageMargins: [40, 170, 40, 120],
+      pageSize: "A4",
+      pageMargins: [40, 128, 40, 120],
       header: {
         margin: [40, 20, 40, 0],
         stack: [
-          { image: logoBase64, width: 300, alignment: "center", margin: [0, 0, 0, 2] },
+          { image: logoBase64, width: 300, alignment: "center", margin: [0, -10, 0, 2] },
           {
             stack: [
               { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: -0.45, y: 0 }, margin: [0, 0, 0, -17] },
@@ -785,11 +785,16 @@ function AdminDashboard() {
         ]
       },
       content: [
-        { columns: [{ text: "DETAILS: ", bold: true, fontSize: 11 }, { text: "JOB ORDER NO.: " + jobData.joNumber, bold: true, fontSize: 11, alignment: "right" }], margin: [0, 5, 0, 10] },
         {
           table: {
             widths: [78, "*", 78, "*"],
             body: [
+              [
+                { text: "DETAILS:", bold: true, fontSize: 11, colSpan: 2, fillColor: "#9fd0ff", margin: [0, 2, 0, 2] },
+                {},
+                { text: "JOB ORDER NO.: " + jobData.joNumber, bold: true, fontSize: 11, alignment: "right", colSpan: 2, fillColor: "#9fd0ff", margin: [0, 2, 0, 2] },
+                {}
+              ],
               [
                 { text: "Client Name:", bold: true, fontSize: 10 },
                 { text: jobData.client || "-", fontSize: 10 },
@@ -816,33 +821,86 @@ function AdminDashboard() {
               ]
             ]
           },
-          layout: "noBorders",
-          margin: [0, 0, 0, 15]
-        },
-        { text: "SERVICES", style: "sectitle" },
-        {
-          table: { widths: ["*", 40, 40, 60, 60], headerRows: 1, body: [[{ text: "JOB/ITEM DESCRIPTION", bold: true, fontSize: 10 }, { text: "QNT", bold: true, alignment: "center", fontSize: 10 }, { text: "UNIT", bold: true, alignment: "center", fontSize: 10 }, { text: "AMOUNT", bold: true, alignment: "right", fontSize: 10 }, { text: "TOTAL AMOUNT", bold: true, alignment: "right", fontSize: 10 }], ...serviceRows] },
           layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => "#000000",
+            vLineColor: () => "#000000",
+            paddingLeft: () => 4,
+            paddingRight: () => 4,
+            paddingTop: () => 3,
+            paddingBottom: () => 3
+          },
+          margin: [0, 5, 0, 15]
+        },
+        {
+          table: {
+            widths: ["*", 40, 40, 60, 60],
+            body: [
+              [
+                { text: "SERVICES", colSpan: 5, bold: true, fontSize: 11, alignment: "center", color: "#000000", fillColor: "#9fd0ff", margin: [0, 2, 0, 2] },
+                {},
+                {},
+                {},
+                {}
+              ],
+              [
+                { text: "JOB/ITEM DESCRIPTION", bold: true, fontSize: 8 },
+                { text: "QNT", bold: true, alignment: "center", fontSize: 8 },
+                { text: "UNIT", bold: true, alignment: "center", fontSize: 8 },
+                { text: "AMOUNT", bold: true, alignment: "right", fontSize: 8 },
+                { text: "TOTAL AMOUNT", bold: true, alignment: "right", fontSize: 8 }
+              ],
+              ...serviceRows,
+              [
+                { text: "PARTS", colSpan: 5, bold: true, fontSize: 11, alignment: "center", color: "#000000", fillColor: "#9fd0ff", margin: [0, 2, 0, 2] },
+                {},
+                {},
+                {},
+                {}
+              ],
+              [
+                { text: "DESCRIPTION", bold: true, fontSize: 8 },
+                { text: "QNT", bold: true, alignment: "center", fontSize: 8 },
+                { text: "UNIT", bold: true, alignment: "center", fontSize: 8 },
+                { text: "AMOUNT", bold: true, alignment: "right", fontSize: 8 },
+                { text: "TOTAL AMOUNT", bold: true, alignment: "right", fontSize: 8 }
+              ],
+              ...partsRows
+            ]
+          },
+          layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => "#000000",
+            vLineColor: () => "#000000",
             fillColor: (rowIndex) => {
-              if (rowIndex === 0) return "#ffffff";
+              if (rowIndex === 0 || rowIndex === serviceRows.length + 2) return "#ffffff";
+              if (rowIndex === 1 || rowIndex === serviceRows.length + 3) return "#ffffff";
               return rowIndex % 2 === 0 ? "#d9d9d9" : "#ffffff";
             }
           },
-          margin: [0, 0, 0, 10]
-        },
-        { text: "PARTS", style: "sectitle" },
-        {
-          table: { widths: ["*", 40, 40, 60, 60], headerRows: 1, body: [[{ text: "DESCRIPTION", bold: true, fontSize: 10 }, { text: "QNT", bold: true, alignment: "center", fontSize: 10 }, { text: "UNIT", bold: true, alignment: "center", fontSize: 10 }, { text: "AMOUNT", bold: true, alignment: "right", fontSize: 10 }, { text: "TOTAL AMOUNT", bold: true, alignment: "right", fontSize: 10 }], ...partsRows] },
-          layout: {
-            fillColor: (rowIndex) => {
-              if (rowIndex === 0) return "#ffffff";
-              return rowIndex % 2 === 0 ? "#d9d9d9" : "#ffffff";
-            }
-          },
           margin: [0, 0, 0, 15]
         },
-        { text: `Subtotal: \u20b1${Number(jobData.subtotal || 0).toFixed(2)}`, alignment: "right", fontSize: 10 },
-        { text: `Total: \u20b1${Number(jobData.grandTotal || 0).toFixed(2)}`, bold: true, alignment: "right", fontSize: 11, margin: [0, 0, 0, 20] }
+        {
+          table: {
+            widths: ["*", 20, 90],
+            body: [
+              [
+                { text: "TOTAL AMOUNT:", bold: true, alignment: "right", fontSize: 11, color: "#111111", fillColor: "#9fd0ff", margin: [0, 2, 6, 2] },
+                { text: "\u20b1", bold: true, alignment: "center", fontSize: 11, color: "#111111", fillColor: "#9fd0ff", margin: [0, 2, 0, 2] },
+                { text: Number(jobData.grandTotal || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), bold: true, alignment: "right", fontSize: 11, color: "#111111", fillColor: "#9fd0ff", margin: [0, 2, 6, 2] }
+              ]
+            ]
+          },
+          layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => "#000000",
+            vLineColor: () => "#000000"
+          },
+          margin: [0, 0, 0, 20]
+        }
       ],
 
       footer: function (currentPage, pageCount) {
