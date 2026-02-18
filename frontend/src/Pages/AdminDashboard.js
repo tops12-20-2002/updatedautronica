@@ -893,7 +893,7 @@ function AdminDashboard() {
 
       footer: function (currentPage, pageCount) {
         return {
-          margin: [40, 20, 40, 40],
+          margin: [40, -60, 40, 20],
           stack: [
             {
               columns: [
@@ -916,7 +916,7 @@ function AdminDashboard() {
               ]
             },
 
-            { text: "", margin: [0, 10] },
+            { text: "", margin: [0, 15] },
 
             {
               text: "Note: I hereby acknowledge that all items and labor are in good condition/s",
@@ -925,6 +925,12 @@ function AdminDashboard() {
 
             { text: "Received By:", fontSize: 10, margin: [0, 12, 0, 6] },
             { text: "_____________________________", fontSize: 10 },
+            {
+              text: "By signing this document, I acknowledge that the services and materials listed above have been completed to my satisfaction. I agree that Autronicas Auto Service and Spare Parts Corps. has fulfilled its obligation and that I am satisfied with the work provided.",
+              fontSize: 8,
+              alignment: "center",
+              margin: [0, 25, 0, 0]
+            },
 
             {
               text: `Page ${currentPage} of ${pageCount}`,
@@ -1553,4 +1559,6 @@ function AdminDashboard() {
 }
 
 export default AdminDashboard;
+
+
 
