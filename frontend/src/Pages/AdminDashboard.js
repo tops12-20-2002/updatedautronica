@@ -762,26 +762,14 @@ function AdminDashboard() {
 
     return {
       pageSize: "A4",
-      pageMargins: [40, 128, 40, 120],
+      pageMargins: [40, 117, 40, 120],
       header: {
         margin: [40, 20, 40, 0],
         stack: [
-          { image: logoBase64, width: 300, alignment: "center", margin: [0, -10, 0, 2] },
-          {
-            stack: [
-              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: -0.45, y: 0 }, margin: [0, 0, 0, -17] },
-              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: 0.45, y: 0 }, margin: [0, 0, 0, -17] },
-              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: 0, y: -0.45 }, margin: [0, 0, 0, -17] },
-              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: 0, y: 0.45 }, margin: [0, 0, 0, -17] },
-              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: -0.35, y: -0.35 }, margin: [0, 0, 0, -17] },
-              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: 0.35, y: -0.35 }, margin: [0, 0, 0, -17] },
-              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: -0.35, y: 0.35 }, margin: [0, 0, 0, -17] },
-              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000", relativePosition: { x: 0.35, y: 0.35 }, margin: [0, 0, 0, -17] },
-              { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#c89b19" }
-            ]
-          },
+          { image: logoBase64, width: 250, alignment: "center", margin: [0, -10, 0, 2] },
+          { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000" },
           { text: "MAHARLIKA HIGHWAY SITIO BAGONG TULAY BRGY. BUKAL PAGBILAO QUEZON", style: "subheader", alignment: "center", color: "#1e1e1e" },
-          { text: "SMART: 09989990252   GLOBE: 09171874571", style: "subheader", alignment: "center", margin: [0, 0, 0, 10], color: "#1e1e1e" }
+          { text: "SMART: 09184533356   SMART: 09989990252   GLOBE: 09989990252 ", style: "subheader", alignment: "center", margin: [0, 0, 0, 10], color: "#1e1e1e" }
         ]
       },
       content: [
