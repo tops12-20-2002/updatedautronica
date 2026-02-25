@@ -800,7 +800,7 @@ function MechanicDashboard() {
                   type="text"
                   placeholder="JO no, plate, model, client..."
                   value={salesSearch}
-                  onChange={(e) => setSalesSearch(e.target.value)}
+                  onChange={(e) => setSalesSearch(String(e.target.value || "").toUpperCase())}
                 />
               </div>
               <div className="sales-filter">

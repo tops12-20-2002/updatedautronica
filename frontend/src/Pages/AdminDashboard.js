@@ -13,6 +13,7 @@ pdfMake.vfs = pdfFonts.vfs;
 
 function AdminDashboard() {
   const navigate = useNavigate();
+  const toUpperInput = (value) => String(value ?? "").toUpperCase();
 
   const formatJobOrderNo = (num) => String(num).padStart(4, "0");
 
@@ -174,33 +175,34 @@ function AdminDashboard() {
     setServices((prev) => [...prev, { description: "", qty: "", unit: "", price: "" }]);
   };
   const updateService = (index, field, value) => {
+    const nextValue = (field === "description" || field === "unit") ? toUpperInput(value) : value;
     setServices(prev => {
       const copy = [...prev];
       const currentRow = { ...copy[index] };
 
       // Replace 0 with first typed value
       if (field === "price" && (currentRow.price === "0" || currentRow.price === 0)) {
-        currentRow.price = value;
+        currentRow.price = nextValue;
       } else {
-        currentRow[field] = value;
+        currentRow[field] = nextValue;
       }
 
       // Store unit price
       if (field === "price") {
-        if (value === "") {
+        if (nextValue === "") {
           currentRow.unitPrice = "";
           currentRow.price = "";
         } else {
           const qty = parseFloat(currentRow.qty) || 0;
-          const unit = parseFloat(value) || 0;
-          currentRow.unitPrice = value;
+          const unit = parseFloat(nextValue) || 0;
+          currentRow.unitPrice = nextValue;
           currentRow.price = (qty * unit).toFixed(2); // update total
         }
       }
 
       // Update total if qty changes
       if (field === "qty") {
-        const qty = parseFloat(value) || 0;
+        const qty = parseFloat(nextValue) || 0;
         const unit = parseFloat(currentRow.unitPrice);
         if (currentRow.unitPrice === "" || Number.isNaN(unit)) {
           currentRow.price = "";
@@ -287,6 +289,7 @@ function AdminDashboard() {
 
   const updatePart = (index, field, value, options = {}) => {
     let stockErrorMessage = "";
+    const nextValue = (field === "description" || field === "unit") ? toUpperInput(value) : value;
 
     setParts(prev => {
       const copy = [...prev];
@@ -295,15 +298,15 @@ function AdminDashboard() {
       const wasBlank = !currentRow.description?.trim() && !currentRow.unit?.trim() && !currentRow.qty && !currentRow.unitPrice && !currentRow.price;
 
       if (field === "price" && (currentRow.price === "0" || currentRow.price === 0)) {
-        currentRow.price = value;
+        currentRow.price = nextValue;
       } else {
-        currentRow[field] = value;
+        currentRow[field] = nextValue;
       }
 
       // AUTO-FILL UNIT PRICE ONLY WHEN ENTER IS PRESSED
       if (field === "description" && options.commit === true) {
         const product = products.find(
-          p => p.code?.toLowerCase() === value.trim().toLowerCase()
+          p => p.code?.toLowerCase() === nextValue.trim().toLowerCase()
         );
 
         if (product) {
@@ -345,20 +348,20 @@ function AdminDashboard() {
 
       // Store unit price and update total when unit price changes
       if (field === "price") {
-        if (value === "") {
+        if (nextValue === "") {
           currentRow.unitPrice = "";
           currentRow.price = "";
         } else {
           const qty = parseFloat(currentRow.qty) || 0;
-          const unit = parseFloat(value) || 0;
-          currentRow.unitPrice = value;
+          const unit = parseFloat(nextValue) || 0;
+          currentRow.unitPrice = nextValue;
           currentRow.price = (qty * unit).toFixed(2);
         }
       }
 
       // Update total if qty changes
       if (field === "qty") {
-        const qty = parseFloat(value) || 0;
+        const qty = parseFloat(nextValue) || 0;
         const matchedProduct = findProductByPartValue(currentRow.description);
         const stock = parseFloat(matchedProduct?.stocks ?? matchedProduct?.quantity ?? 0) || 0;
         if (matchedProduct && qty > stock) {
@@ -1231,7 +1234,7 @@ function AdminDashboard() {
       if (e.key === "Enter") {
         const scanned = scanBuffer.trim();
         if (scanned.length > 0) {
-          setInventorySearch(scanned);
+          setInventorySearch(toUpperInput(scanned));
           requestAnimationFrame(() => {
             inventorySearchInputRef.current?.focus();
             inventorySearchInputRef.current?.select();
@@ -1363,7 +1366,7 @@ function AdminDashboard() {
                 type="text"
                 placeholder="Search inventory or scan barcode..."
                 value={inventorySearch}
-                onChange={(e) => setInventorySearch(e.target.value)}
+                onChange={(e) => setInventorySearch(toUpperInput(e.target.value))}
               />
             </div>
             <table className="inventory-table">
@@ -1426,7 +1429,7 @@ function AdminDashboard() {
                 type="text"
                 placeholder="Search job orders..."
                 value={jobSearch}
-                onChange={(e) => setJobSearch(e.target.value)}
+                onChange={(e) => setJobSearch(toUpperInput(e.target.value))}
               />
             </div>
             <div className="joborders-filters">
@@ -1446,7 +1449,8 @@ function AdminDashboard() {
                     <col className="col-total" />
                     <col className="col-status" />
                     <col className="col-assigned" />
-                    <col className="col-saved" />
+                    <col className="col-datein" />
+                    <col className="col-daterel" />
                     <col className="col-actions" />
                   </colgroup>
                   <thead>
@@ -1458,13 +1462,14 @@ function AdminDashboard() {
                       <th>TOTAL PRICE</th>
                       <th>STATUS</th>
                       <th>ASSIGNED TO</th>
-                      <th>SAVED DATE/TIME</th>
+                      <th>DATE IN</th>
+                      <th>DATE RELEASE</th>
                       <th>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredJobOrders.filter(o => jobStatusFilter === "All" || o.status === jobStatusFilter).length === 0 ? (
-                      <tr><td colSpan="9" className="empty-message">No job orders created yet.</td></tr>
+                      <tr><td colSpan="10" className="empty-message">No job orders created yet.</td></tr>
                     ) : (
                       filteredJobOrders
                         .filter(o => jobStatusFilter === "All" || o.status === jobStatusFilter)
@@ -1479,7 +1484,8 @@ function AdminDashboard() {
                             <span className={o.status === "Pending" ? "status-tag yellow" : o.status === "In Progress" ? "status-tag blue" : "status-tag green"}>{o.status}</span>
                           </td>
                           <td>{o.assignedTo || o.assigned_to}</td>
-                          <td>{formatSavedDateTime(o)}</td>
+                          <td>{formatDateMMDDYYYY(o.dateIn || o.date)}</td>
+                          <td>{formatDateMMDDYYYY(o.dateRelease || o.date_release)}</td>
                           <td className="actions">
                             {o.status === "Completed" ? (
                               <div className="actions-stack">
@@ -1519,15 +1525,15 @@ function AdminDashboard() {
                 <div className="form-grid">
                   <div className="left">
                     <label>Client Name</label>
-                    <input type="text" placeholder="Enter client name" value={clientName} onChange={(e) => setClientName(e.target.value)} disabled={isJobReadOnly} />
+                    <input type="text" placeholder="Enter client name" value={clientName} onChange={(e) => setClientName(toUpperInput(e.target.value))} disabled={isJobReadOnly} />
                     <label>Address</label>
-                    <input type="text" placeholder="Enter address" value={address} onChange={(e) => setAddress(e.target.value)} disabled={isJobReadOnly} />
+                    <input type="text" placeholder="Enter address" value={address} onChange={(e) => setAddress(toUpperInput(e.target.value))} disabled={isJobReadOnly} />
                     <label>Vehicle Model</label>
-                    <input type="text" placeholder="Enter vehicle model" value={vehicleModel} onChange={(e) => setVehicleModel(e.target.value)} disabled={isJobReadOnly} />
+                    <input type="text" placeholder="Enter vehicle model" value={vehicleModel} onChange={(e) => setVehicleModel(toUpperInput(e.target.value))} disabled={isJobReadOnly} />
                     <label>Date In</label>
                     <input type="date" value={dateIn} onChange={(e) => setDateIn(e.target.value)} disabled={isJobReadOnly} />
                     <label>Assigned To</label>
-                    <input type="text" placeholder="Enter mechanic" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} disabled={isJobReadOnly} />
+                    <input type="text" placeholder="Enter mechanic" value={assignedTo} onChange={(e) => setAssignedTo(toUpperInput(e.target.value))} disabled={isJobReadOnly} />
                     <label>Payment Type</label>
                     <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} disabled={isJobReadOnly}>
                       <option value="Accounts Receivable">Accounts Receivable</option>
@@ -1543,9 +1549,9 @@ function AdminDashboard() {
                       <option value="STAN">STAN</option>
                     </select>
                     <label>Contact Number</label>
-                    <input type="text" placeholder="Enter contact number" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} disabled={isJobReadOnly} />
+                    <input type="text" placeholder="Enter contact number" value={contactNumber} onChange={(e) => setContactNumber(toUpperInput(e.target.value))} disabled={isJobReadOnly} />
                     <label>Plate Number</label>
-                    <input type="text" placeholder="Enter plate number" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} disabled={isJobReadOnly} />
+                    <input type="text" placeholder="Enter plate number" value={plateNumber} onChange={(e) => setPlateNumber(toUpperInput(e.target.value))} disabled={isJobReadOnly} />
                     <label>Date Release</label>
                     <input type="date" value={dateRelease} onChange={(e) => setDateRelease(e.target.value)} disabled={isJobReadOnly} />
                     <label>Status</label>
@@ -1645,7 +1651,7 @@ function AdminDashboard() {
                   type="text"
                   placeholder="Scan or enter code"
                   value={newProduct.code}
-                  onChange={(e) => setNewProduct({ ...newProduct, code: e.target.value })}
+                  onChange={(e) => setNewProduct({ ...newProduct, code: toUpperInput(e.target.value) })}
                   autoFocus
                 />
 
@@ -1654,13 +1660,13 @@ function AdminDashboard() {
                   type="text"
                   placeholder="Enter part number"
                   value={newProduct.partNumber}
-                  onChange={(e) => setNewProduct({ ...newProduct, partNumber: e.target.value })}
+                  onChange={(e) => setNewProduct({ ...newProduct, partNumber: toUpperInput(e.target.value) })}
                 />
 
                 <label>Product Name</label>
-                <input type="text" placeholder="Enter Product Name" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} />
+                <input type="text" placeholder="Enter Product Name" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: toUpperInput(e.target.value) })} />
                 <label>Company</label>
-                <input type="text" placeholder="Enter company name" value={newProduct.companyCodename} onChange={(e) => setNewProduct({ ...newProduct, companyCodename: e.target.value })} />
+                <input type="text" placeholder="Enter company name" value={newProduct.companyCodename} onChange={(e) => setNewProduct({ ...newProduct, companyCodename: toUpperInput(e.target.value) })} />
                 <label>Quantity</label>
                 <input type="number" placeholder="Enter Quantity" value={newProduct.quantity} onChange={(e) => setNewProduct({ ...newProduct, quantity: e.target.value })} />
                 <label>Unit Price</label>
@@ -1715,13 +1721,13 @@ function AdminDashboard() {
               </div>
               <div className="product-modal-body">
                 <label>Code</label>
-                <input type="text" value={newProduct.code} onChange={(e) => setNewProduct({ ...newProduct, code: e.target.value })} />
+                <input type="text" value={newProduct.code} onChange={(e) => setNewProduct({ ...newProduct, code: toUpperInput(e.target.value) })} />
                 <label>Part Number</label>
-                <input type="text" value={newProduct.partNumber} onChange={(e) => setNewProduct({ ...newProduct, partNumber: e.target.value })} />
+                <input type="text" value={newProduct.partNumber} onChange={(e) => setNewProduct({ ...newProduct, partNumber: toUpperInput(e.target.value) })} />
                 <label>Product Name</label>
-                <input type="text" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} />
+                <input type="text" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: toUpperInput(e.target.value) })} />
                 <label>Company</label>
-                <input type="text" value={newProduct.companyCodename} onChange={(e) => setNewProduct({ ...newProduct, companyCodename: e.target.value })} />
+                <input type="text" value={newProduct.companyCodename} onChange={(e) => setNewProduct({ ...newProduct, companyCodename: toUpperInput(e.target.value) })} />
                 <label>Quantity</label>
                 <input type="number" value={newProduct.quantity} onChange={(e) => setNewProduct({ ...newProduct, quantity: e.target.value })} />
                 <label>Unit Price</label>
