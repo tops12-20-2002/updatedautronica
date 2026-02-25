@@ -15,6 +15,18 @@ function AdminDashboard() {
   const navigate = useNavigate();
 
   const formatJobOrderNo = (num) => String(num).padStart(4, "0");
+  const getNextAvailableJobOrderNo = (orders) => {
+    const used = new Set(
+      (orders || [])
+        .filter((o) => (o?.status || "") === "Completed")
+        .map((o) => parseInt(o?.job_order_no ?? o?.joNumber ?? 0, 10))
+        .filter((n) => Number.isInteger(n) && n > 0)
+    );
+
+    let next = 1;
+    while (used.has(next)) next += 1;
+    return next;
+  };
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [tabDirection, setTabDirection] = useState("none");
@@ -83,18 +95,8 @@ function AdminDashboard() {
       }
       if (jobOrdersRes.success) {
         setJobOrders(jobOrdersRes.data);
-        // Set next job order number
-        if (jobOrdersRes.data.length > 0) {
-          const maxNo = Math.max(
-            ...jobOrdersRes.data.map(j =>
-              parseInt(j.job_order_no || j.joNumber || 0, 10)
-            )
-          );
-          setJobOrderNo(maxNo + 1);
-        } else {
-          setJobOrderNo(0); // Start from 0000 for the first job order
-        }
-
+        // Reuse deleted JO numbers first (smallest available completed number).
+        setJobOrderNo(getNextAvailableJobOrderNo(jobOrdersRes.data));
       }
       if (dashboardRes.success) {
         setDashboardStats(dashboardRes.data);
@@ -762,7 +764,7 @@ function AdminDashboard() {
 
     return {
       pageSize: "A4",
-      pageMargins: [40, 117, 40, 120],
+      pageMargins: [40, 117, 40, 155],
       header: {
         margin: [40, 20, 40, 0],
         stack: [
@@ -797,9 +799,9 @@ function AdminDashboard() {
               ],
               [
                 { text: "Date In:", bold: true, fontSize: 10 },
-                { text: jobData.dateIn || "-", fontSize: 10 },
+                { text: formatDateMMDDYYYY(jobData.dateIn), fontSize: 10 },
                 { text: "Date Out:", bold: true, fontSize: 10 },
-                { text: jobData.dateRelease || "-", fontSize: 10 }
+                { text: formatDateMMDDYYYY(jobData.dateRelease), fontSize: 10 }
               ],
               [
                 { text: "Contact No:", bold: true, fontSize: 10 },
@@ -890,10 +892,12 @@ function AdminDashboard() {
           margin: [0, 0, 0, 20]
         }
       ],
-
       footer: function (currentPage, pageCount) {
+        if (currentPage !== pageCount) {
+          return { text: "" };
+        }
         return {
-          margin: [40, -60, 40, 20],
+          margin: [40, 0, 40, 20],
           stack: [
             {
               columns: [
@@ -915,14 +919,11 @@ function AdminDashboard() {
                 }
               ]
             },
-
             { text: "", margin: [0, 15] },
-
             {
               text: "Note: I hereby acknowledge that all items and labor are in good condition/s",
               fontSize: 9
             },
-
             { text: "Received By:", fontSize: 10, margin: [0, 12, 0, 6] },
             { text: "_____________________________", fontSize: 10 },
             {
@@ -930,14 +931,6 @@ function AdminDashboard() {
               fontSize: 8,
               alignment: "center",
               margin: [0, 25, 0, 0]
-            },
-
-            {
-              text: `Page ${currentPage} of ${pageCount}`,
-              alignment: "right",
-              fontSize: 8,
-              margin: [0, 10, 0, 0],
-              color: "#666"
             }
           ]
         };
@@ -1081,6 +1074,11 @@ function AdminDashboard() {
       const aCompleted = (a.status || "") === "Completed" ? 1 : 0;
       const bCompleted = (b.status || "") === "Completed" ? 1 : 0;
       if (aCompleted !== bCompleted) return aCompleted - bCompleted;
+      if (aCompleted === 1 && bCompleted === 1) {
+        const aNo = parseInt(a.joNumber ?? a.job_order_no ?? 0, 10) || 0;
+        const bNo = parseInt(b.joNumber ?? b.job_order_no ?? 0, 10) || 0;
+        if (aNo !== bNo) return bNo - aNo;
+      }
       return (parseInt(b.id, 10) || 0) - (parseInt(a.id, 10) || 0);
     });
 
@@ -1110,6 +1108,35 @@ function AdminDashboard() {
     const nextIndex = filterIndex[nextFilter] ?? 0;
     setJobFilterDirection(nextIndex > currentIndex ? "slide-right" : "slide-left");
     setJobStatusFilter(nextFilter);
+  };
+
+  const formatDateMMDDYYYY = (rawValue) => {
+    if (!rawValue) return "-";
+    const normalized = String(rawValue).replace(" ", "T");
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) return String(rawValue);
+    return date.toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric"
+    });
+  };
+
+  const formatSavedDateTime = (order) => {
+    const raw = order?.updated_at || order?.created_at;
+    if (!raw) return "-";
+
+    const normalized = String(raw).replace(" ", "T");
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) return String(raw);
+
+    const datePart = formatDateMMDDYYYY(raw);
+    const timePart = date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true
+    });
+    return `${datePart} ${timePart}`;
   };
 
   if (loading) {
@@ -1260,6 +1287,19 @@ function AdminDashboard() {
             <div key={jobStatusFilter} className={`job-filter-slide-panel ${jobFilterDirection}`}>
               <div className="joborders-table-wrapper">
                 <table className="joborders-table">
+                  <colgroup>
+                    <col className="col-jo" />
+                    <col className="col-client" />
+                    <col className="col-vehicle" />
+                    <col className="col-plate" />
+                    <col className="col-total" />
+                    <col className="col-status" />
+                    <col className="col-assigned" />
+                    <col className="col-datein" />
+                    <col className="col-daterel" />
+                    <col className="col-saved" />
+                    <col className="col-actions" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>JOB ORDER NO.</th>
@@ -1271,12 +1311,13 @@ function AdminDashboard() {
                       <th>ASSIGNED TO</th>
                       <th>DATE IN</th>
                       <th>DATE RELEASE</th>
+                      <th>SAVED DATE/TIME</th>
                       <th>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredJobOrders.filter(o => jobStatusFilter === "All" || o.status === jobStatusFilter).length === 0 ? (
-                      <tr><td colSpan="10" className="empty-message">No job orders created yet.</td></tr>
+                      <tr><td colSpan="11" className="empty-message">No job orders created yet.</td></tr>
                     ) : (
                       filteredJobOrders
                         .filter(o => jobStatusFilter === "All" || o.status === jobStatusFilter)
@@ -1291,19 +1332,20 @@ function AdminDashboard() {
                             <span className={o.status === "Pending" ? "status-tag yellow" : o.status === "In Progress" ? "status-tag blue" : "status-tag green"}>{o.status}</span>
                           </td>
                           <td>{o.assignedTo || o.assigned_to}</td>
-                          <td>{o.dateIn || o.date}</td>
-                          <td>{o.dateRelease || o.date_release || '-'}</td>
+                          <td>{formatDateMMDDYYYY(o.dateIn || o.date)}</td>
+                          <td>{formatDateMMDDYYYY(o.dateRelease || o.date_release)}</td>
+                          <td>{formatSavedDateTime(o)}</td>
                           <td className="actions">
                             {o.status === "Completed" ? (
-                              <>
+                              <div className="actions-stack">
                                 <button className="view-edit-btn" onClick={() => viewJobOrderPDF(o.id)}>View</button>
-                                <button className="view-edit-btn" onClick={() => downloadJobOrderPDF(o.id)} style={{ marginLeft: 8 }}>Download</button>
-                              </>
+                                <button className="view-edit-btn" onClick={() => downloadJobOrderPDF(o.id)}>Download</button>
+                              </div>
                             ) : (
-                              <>
+                              <div className="actions-stack">
                                 <button className="view-edit-btn" onClick={() => handleEditJob(o.id)}>Edit</button>
-                                <button className="delete-btn" onClick={() => requestDeleteJobOrder(o.id)} style={{ marginLeft: 8 }}>Delete</button>
-                              </>
+                                <button className="delete-btn" onClick={() => requestDeleteJobOrder(o.id)}>Delete</button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -1343,7 +1385,7 @@ function AdminDashboard() {
                     <input type="text" placeholder="Enter mechanic" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} disabled={isJobReadOnly} />
                     <label>Payment Type</label>
                     <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} disabled={isJobReadOnly}>
-                      <option value="Accounts Receivable">Accounts Receivalbe</option>
+                      <option value="Accounts Receivable">Accounts Receivable</option>
                       <option value="Cash">Cash</option>
                     </select>
                   </div>
@@ -1382,7 +1424,7 @@ function AdminDashboard() {
                     <input type="number" min="0" step="0.01" placeholder="Price" value={s.unitPrice} onChange={(e) => updateService(i, "price", e.target.value)} onFocus={(e) => e.target.select()} disabled={isJobReadOnly} />
                     <input type="number" min="0" step="0.01" placeholder="Total Price" value={s.price} />
                     {services.length > 1 && (
-                      <button className="delete-box" onClick={() => deleteService(i)} aria-label="Delete service" disabled={isJobReadOnly}>?</button>
+                      <button className="delete-box" onClick={() => deleteService(i)} aria-label="Delete service" disabled={isJobReadOnly}>X</button>
                     )}
                   </div>
                 ))}
@@ -1412,7 +1454,7 @@ function AdminDashboard() {
                     <input type="number" min="0" step="0.01" placeholder="Price" value={p.unitPrice} onChange={(e) => updatePart(i, "price", e.target.value)} onFocus={(e) => e.target.select()} disabled={isJobReadOnly} />
                     <input type="number" min="0" step="0.01" placeholder="Total Price" value={p.price} />
                     {parts.length > 1 && (
-                      <button className="delete-box" onClick={() => deletePart(i)} aria-label="Delete part" disabled={isJobReadOnly}>?</button>
+                      <button className="delete-box" onClick={() => deletePart(i)} aria-label="Delete part" disabled={isJobReadOnly}>X</button>
                     )}
                   </div>
                 ))}

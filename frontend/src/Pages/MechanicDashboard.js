@@ -203,6 +203,7 @@ function MechanicDashboard() {
       assignedTo: order?.assignedTo || order?.assigned_to || "",
       contactNumber: order?.contactNumber || order?.contact_no || "",
       subtotal: parseFloat(order?.subtotal || 0) || 0,
+      discount: parseFloat(order?.discount || 0) || 0,
       grandTotal: parseFloat(order?.total || order?.total_amount || 0) || 0,
       services: order?.services || [],
       parts: order?.parts || []
@@ -210,7 +211,7 @@ function MechanicDashboard() {
   };
 
   const buildPdfDocDefinition = async (jobData) => {
-    const logoBase64 = await loadBase64Image(process.env.PUBLIC_URL + "/AutronicasLogo.png");
+    const logoBase64 = await loadBase64Image(process.env.PUBLIC_URL + "/again.png");
 
     const serviceRows = (jobData.services || []).map((s) => {
       const { qty, unitPrice, total } = normalizePdfLineItem(s);
@@ -235,23 +236,28 @@ function MechanicDashboard() {
     });
 
     return {
-      pageSize: "LETTER",
-      pageMargins: [40, 110, 40, 120],
+      pageSize: "A4",
+      pageMargins: [40, 117, 40, 155],
       header: {
         margin: [40, 20, 40, 0],
         stack: [
-          { image: logoBase64, width: 120, alignment: "center", margin: [0, 0, 0, 2] },
-          { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#0b5ed7" },
-          { text: "MAHARLIKA HIGHWAY SITIO BAGONG TULAY BRGY. BUKAL PAGBILAO QUEZON", style: "subheader", alignment: "center", color: "#0b5ed7" },
-          { text: "SMART: 09989990252   GLOBE: 09171874571", style: "subheader", alignment: "center", margin: [0, 0, 0, 10], color: "#0b5ed7" }
+          { image: logoBase64, width: 250, alignment: "center", margin: [0, -10, 0, 2] },
+          { text: "AUTO SERVICE AND SPARE PARTS CORP.", style: "header", alignment: "center", color: "#000000" },
+          { text: "MAHARLIKA HIGHWAY SITIO BAGONG TULAY BRGY. BUKAL PAGBILAO QUEZON", style: "subheader", alignment: "center", color: "#1e1e1e" },
+          { text: "SMART: 09184533356   SMART: 09989990252   GLOBE: 09989990252 ", style: "subheader", alignment: "center", margin: [0, 0, 0, 10], color: "#1e1e1e" }
         ]
       },
       content: [
-        { columns: [{ text: "DETAILS: ", bold: true, fontSize: 11 }, { text: "JOB ORDER NO.: " + jobData.joNumber, bold: true, fontSize: 11, alignment: "right" }], margin: [0, 5, 0, 10] },
         {
           table: {
             widths: [78, "*", 78, "*"],
             body: [
+              [
+                { text: "DETAILS:", bold: true, fontSize: 11, colSpan: 2, fillColor: "#9fd0ff", margin: [0, 2, 0, 2] },
+                {},
+                { text: "JOB ORDER NO.: " + jobData.joNumber, bold: true, fontSize: 11, alignment: "right", colSpan: 2, fillColor: "#9fd0ff", margin: [0, 2, 0, 2] },
+                {}
+              ],
               [
                 { text: "Client Name:", bold: true, fontSize: 10 },
                 { text: jobData.client || "-", fontSize: 10 },
@@ -266,9 +272,9 @@ function MechanicDashboard() {
               ],
               [
                 { text: "Date In:", bold: true, fontSize: 10 },
-                { text: jobData.dateIn || "-", fontSize: 10 },
+                { text: formatDateMMDDYYYY(jobData.dateIn), fontSize: 10 },
                 { text: "Date Out:", bold: true, fontSize: 10 },
-                { text: jobData.dateRelease || "-", fontSize: 10 }
+                { text: formatDateMMDDYYYY(jobData.dateRelease), fontSize: 10 }
               ],
               [
                 { text: "Contact No:", bold: true, fontSize: 10 },
@@ -278,37 +284,93 @@ function MechanicDashboard() {
               ]
             ]
           },
-          layout: "noBorders",
-          margin: [0, 0, 0, 15]
-        },
-        { text: "SERVICES", style: "sectitle" },
-        {
-          table: { widths: ["*", 40, 40, 60, 60], headerRows: 1, body: [[{ text: "JOB/ITEM DESCRIPTION", bold: true, fontSize: 10 }, { text: "QNT", bold: true, alignment: "center", fontSize: 10 }, { text: "UNIT", bold: true, alignment: "center", fontSize: 10 }, { text: "AMOUNT", bold: true, alignment: "right", fontSize: 10 }, { text: "TOTAL AMOUNT", bold: true, alignment: "right", fontSize: 10 }], ...serviceRows] },
           layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => "#000000",
+            vLineColor: () => "#000000",
+            paddingLeft: () => 4,
+            paddingRight: () => 4,
+            paddingTop: () => 3,
+            paddingBottom: () => 3
+          },
+          margin: [0, 5, 0, 15]
+        },
+        {
+          table: {
+            widths: ["*", 40, 40, 60, 60],
+            body: [
+              [
+                { text: "SERVICES", colSpan: 5, bold: true, fontSize: 11, alignment: "center", color: "#000000", fillColor: "#9fd0ff", margin: [0, 2, 0, 2] },
+                {},
+                {},
+                {},
+                {}
+              ],
+              [
+                { text: "JOB/ITEM DESCRIPTION", bold: true, fontSize: 8 },
+                { text: "QNT", bold: true, alignment: "center", fontSize: 8 },
+                { text: "UNIT", bold: true, alignment: "center", fontSize: 8 },
+                { text: "AMOUNT", bold: true, alignment: "right", fontSize: 8 },
+                { text: "TOTAL AMOUNT", bold: true, alignment: "right", fontSize: 8 }
+              ],
+              ...serviceRows,
+              [
+                { text: "PARTS", colSpan: 5, bold: true, fontSize: 11, alignment: "center", color: "#000000", fillColor: "#9fd0ff", margin: [0, 2, 0, 2] },
+                {},
+                {},
+                {},
+                {}
+              ],
+              [
+                { text: "DESCRIPTION", bold: true, fontSize: 8 },
+                { text: "QNT", bold: true, alignment: "center", fontSize: 8 },
+                { text: "UNIT", bold: true, alignment: "center", fontSize: 8 },
+                { text: "AMOUNT", bold: true, alignment: "right", fontSize: 8 },
+                { text: "TOTAL AMOUNT", bold: true, alignment: "right", fontSize: 8 }
+              ],
+              ...partsRows
+            ]
+          },
+          layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => "#000000",
+            vLineColor: () => "#000000",
             fillColor: (rowIndex) => {
-              if (rowIndex === 0) return "#ffffff";
+              if (rowIndex === 0 || rowIndex === serviceRows.length + 2) return "#ffffff";
+              if (rowIndex === 1 || rowIndex === serviceRows.length + 3) return "#ffffff";
               return rowIndex % 2 === 0 ? "#d9d9d9" : "#ffffff";
             }
           },
-          margin: [0, 0, 0, 10]
-        },
-        { text: "PARTS", style: "sectitle" },
-        {
-          table: { widths: ["*", 40, 40, 60, 60], headerRows: 1, body: [[{ text: "DESCRIPTION", bold: true, fontSize: 10 }, { text: "QNT", bold: true, alignment: "center", fontSize: 10 }, { text: "UNIT", bold: true, alignment: "center", fontSize: 10 }, { text: "AMOUNT", bold: true, alignment: "right", fontSize: 10 }, { text: "TOTAL AMOUNT", bold: true, alignment: "right", fontSize: 10 }], ...partsRows] },
-          layout: {
-            fillColor: (rowIndex) => {
-              if (rowIndex === 0) return "#ffffff";
-              return rowIndex % 2 === 0 ? "#d9d9d9" : "#ffffff";
-            }
-          },
           margin: [0, 0, 0, 15]
         },
-        { text: `Subtotal: \u20b1${Number(jobData.subtotal || 0).toFixed(2)}`, alignment: "right", fontSize: 10 },
-        { text: `Total: \u20b1${Number(jobData.grandTotal || 0).toFixed(2)}`, bold: true, alignment: "right", fontSize: 11, margin: [0, 0, 0, 20] }
+        {
+          table: {
+            widths: ["*", 20, 90],
+            body: [
+              [
+                { text: "TOTAL AMOUNT:", bold: true, alignment: "right", fontSize: 11, color: "#111111", fillColor: "#9fd0ff", margin: [0, 2, 6, 2] },
+                { text: "\u20b1", bold: true, alignment: "center", fontSize: 11, color: "#111111", fillColor: "#9fd0ff", margin: [0, 2, 0, 2] },
+                { text: Number(jobData.grandTotal || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), bold: true, alignment: "right", fontSize: 11, color: "#111111", fillColor: "#9fd0ff", margin: [0, 2, 6, 2] }
+              ]
+            ]
+          },
+          layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => "#000000",
+            vLineColor: () => "#000000"
+          },
+          margin: [0, 0, 0, 20]
+        }
       ],
       footer: function (currentPage, pageCount) {
+        if (currentPage !== pageCount) {
+          return { text: "" };
+        }
         return {
-          margin: [40, 20, 40, 40],
+          margin: [40, 0, 40, 20],
           stack: [
             {
               columns: [
@@ -330,7 +392,7 @@ function MechanicDashboard() {
                 }
               ]
             },
-            { text: "", margin: [0, 10] },
+            { text: "", margin: [0, 15] },
             {
               text: "Note: I hereby acknowledge that all items and labor are in good condition/s",
               fontSize: 9
@@ -338,16 +400,15 @@ function MechanicDashboard() {
             { text: "Received By:", fontSize: 10, margin: [0, 12, 0, 6] },
             { text: "_____________________________", fontSize: 10 },
             {
-              text: `Page ${currentPage} of ${pageCount}`,
-              alignment: "right",
+              text: "By signing this document, I acknowledge that the services and materials listed above have been completed to my satisfaction. I agree that Autronicas Auto Service and Spare Parts Corps. has fulfilled its obligation and that I am satisfied with the work provided.",
               fontSize: 8,
-              margin: [0, 10, 0, 0],
-              color: "#666"
+              alignment: "center",
+              margin: [0, 25, 0, 0]
             }
           ]
         };
       },
-      styles: { header: { fontSize: 16, bold: true }, subheader: { fontSize: 10 }, sectitle: { fontSize: 11, bold: true, color: "#0b5ed7", margin: [0, 5, 0, 5] } }
+      styles: { header: { fontSize: 16, bold: true }, subheader: { fontSize: 10, bold: true }, sectitle: { fontSize: 11, bold: true, color: "#0b5ed7", margin: [0, 5, 0, 5] } }
     };
   };
 
@@ -390,6 +451,18 @@ function MechanicDashboard() {
     return paymentType === "Accounts Receivable" ? "Accounts Receivable" : "Cash";
   };
 
+  const formatDateMMDDYYYY = (rawValue) => {
+    if (!rawValue) return "-";
+    const normalized = String(rawValue).replace(" ", "T");
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) return String(rawValue);
+    return date.toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric"
+    });
+  };
+  
   const summarizeByPaymentType = (orders) => {
     return orders.reduce(
       (acc, order) => {
@@ -480,6 +553,13 @@ function MechanicDashboard() {
         return haystack.includes(query);
       })
     : paymentFilteredSalesOrders;
+
+  const sortedSalesOrders = [...searchedSalesOrders].sort((a, b) => {
+    const aNo = parseInt(a.joNumber ?? a.job_order_no ?? 0, 10) || 0;
+    const bNo = parseInt(b.joNumber ?? b.job_order_no ?? 0, 10) || 0;
+    if (aNo !== bNo) return bNo - aNo;
+    return (parseInt(b.id, 10) || 0) - (parseInt(a.id, 10) || 0);
+  });
 
   const handleDatePaymentViewChange = (nextPaymentView) => {
     setDatePaymentView(nextPaymentView);
@@ -740,10 +820,10 @@ function MechanicDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {searchedSalesOrders.length === 0 ? (
+                {sortedSalesOrders.length === 0 ? (
                   <tr><td colSpan="12" className="empty-message">No sales records yet.</td></tr>
                 ) : (
-                  searchedSalesOrders.map((o) => {
+                  sortedSalesOrders.map((o) => {
                     const totals = computeOrderTotals(o);
                     return (
                       <tr key={`sales-${o.id}`}>

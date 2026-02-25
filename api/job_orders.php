@@ -76,18 +76,72 @@ function deductInventoryForParts($pdo, $parts) {
     }
 }
 
-function getNextCompletedJobOrderNo($pdo) {
-    $stmt = $pdo->query("SELECT COALESCE(MAX(job_order_no), 0) + 1 FROM job_orders WHERE status = 'Completed'");
-    return intval($stmt->fetchColumn());
+function restoreInventoryForParts($pdo, $parts) {
+    foreach ($parts as $part) {
+        $description = trim($part['description'] ?? '');
+        if ($description === '') continue;
+
+        $code = trim($part['code'] ?? '');
+        if ($code === '') {
+            $code = parseInventoryCodeFromDescription($description);
+        }
+
+        $qty = intval($part['qty'] ?? $part['quantity'] ?? 0);
+        if ($qty <= 0) continue;
+
+        if ($code !== '') {
+            $stmt = $pdo->prepare("
+                UPDATE inventory
+                SET
+                    quantity = quantity + ?,
+                    status = CASE
+                        WHEN (quantity + ?) <= 0 THEN 'Out of Stock'
+                        WHEN min_quantity > 0 AND (quantity + ?) <= min_quantity THEN 'Low Stock'
+                        ELSE 'In Stock'
+                    END
+                WHERE code = ?
+            ");
+            $stmt->execute([$qty, $qty, $qty, $code]);
+        } else {
+            // Fallback to match by description if no code is present
+            $stmt = $pdo->prepare("
+                UPDATE inventory
+                SET
+                    quantity = quantity + ?,
+                    status = CASE
+                        WHEN (quantity + ?) <= 0 THEN 'Out of Stock'
+                        WHEN min_quantity > 0 AND (quantity + ?) <= min_quantity THEN 'Low Stock'
+                        ELSE 'In Stock'
+                    END
+                WHERE description = ?
+            ");
+            $stmt->execute([$qty, $qty, $qty, $description]);
+        }
+    }
 }
 
-function compactCompletedJobOrderNumbers($pdo, $fromNumber) {
-    $stmt = $pdo->prepare("
-        UPDATE job_orders
-        SET job_order_no = job_order_no - 1
-        WHERE status = 'Completed' AND job_order_no > ?
+function getNextCompletedJobOrderNo($pdo) {
+    $stmt = $pdo->query("
+        SELECT job_order_no
+        FROM job_orders
+        WHERE status = 'Completed' AND job_order_no > 0
+        ORDER BY job_order_no ASC
     ");
-    $stmt->execute([intval($fromNumber)]);
+    $usedNumbers = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+
+    $next = 1;
+    foreach ($usedNumbers as $num) {
+        if ($num < $next) {
+            continue;
+        }
+        if ($num === $next) {
+            $next++;
+            continue;
+        }
+        break;
+    }
+
+    return $next;
 }
 
 try {
@@ -112,15 +166,6 @@ try {
                 $orders = $stmt->fetchAll();
             }
 
-            // Build stable display numbers for completed orders (0001, 0002, ...)
-            $completedNumberById = [];
-            $stmt = $pdo->query("SELECT id FROM job_orders WHERE status = 'Completed' ORDER BY id ASC");
-            $completedIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            $seq = 1;
-            foreach ($completedIds as $completedId) {
-                $completedNumberById[intval($completedId)] = $seq++;
-            }
-            
             // Get services and parts for each job order
             foreach ($orders as &$order) {
                 $jobOrderId = $order['id'];
@@ -153,7 +198,7 @@ try {
                 
                 // Map to frontend structure
                 $order['joNumber'] = $order['status'] === 'Completed'
-                    ? intval($completedNumberById[intval($order['id'])] ?? 0)
+                    ? intval($order['job_order_no'] ?? 0)
                     : 0;
                 $order['client'] = $order['customer_name'];
                 $order['vehicleModel'] = $order['model'];
@@ -307,9 +352,6 @@ try {
                     } else {
                         $jobOrderNo = getNextCompletedJobOrderNo($pdo);
                     }
-                } elseif ($prevStatus === 'Completed' && $prevJobOrderNo > 0) {
-                    // If reverting from completed, close the numbering gap.
-                    compactCompletedJobOrderNumbers($pdo, $prevJobOrderNo);
                 }
 
                 // Update job order
@@ -400,16 +442,20 @@ try {
                 }
 
                 $deletedStatus = $row['status'] ?? 'Pending';
-                $deletedNumber = intval($row['job_order_no'] ?? 0);
+
+                // Load parts first so we can restore inventory if needed.
+                $stmt = $pdo->prepare("SELECT description, quantity FROM job_order_parts WHERE job_order_id = ?");
+                $stmt->execute([$id]);
+                $parts = $stmt->fetchAll();
+
+                // Only completed orders deduct inventory, so only those should be restored on delete.
+                if ($deletedStatus === 'Completed') {
+                    restoreInventoryForParts($pdo, $parts);
+                }
 
                 // Delete the job order
                 $stmt = $pdo->prepare("DELETE FROM job_orders WHERE id = ?");
                 $stmt->execute([$id]);
-
-                // Only completed numbers are sequential and need compaction
-                if ($deletedStatus === 'Completed' && $deletedNumber > 0) {
-                    compactCompletedJobOrderNumbers($pdo, $deletedNumber);
-                }
 
                 $pdo->commit();
                 sendSuccess(null, 'Job order deleted successfully');
