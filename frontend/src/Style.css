@@ -1212,7 +1212,7 @@ background: none;
 .sales-log-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
   flex-wrap: wrap;
   margin: 10px 0 15px 0;
@@ -1224,37 +1224,53 @@ background: none;
 
 .sales-log-actions {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
   flex-wrap: wrap;
 }
 
 .sales-filter {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 160px;
 }
 
 .sales-search {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 300px;
 }
 
 .sales-filter label {
-  display: inline-flex;
-  align-items: center;
+  display: block;
   margin: 0;
-  line-height: 32px;
+  line-height: 1.2;
 }
 
 .sales-search label {
-  display: inline-flex;
-  align-items: center;
+  display: block;
   margin: 0;
-  line-height: 32px;
+  line-height: 1.2;
+}
+
+.sales-filter select,
+.sales-filter input[type="date"],
+.sales-search input[type="text"] {
+  height: 42px;
+  box-sizing: border-box;
+}
+
+.sales-filter select {
+  padding: 6px 10px;
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+  background: #fff;
+  margin: 0;
+  min-width: 180px;
 }
 
 .sales-filter input[type="date"] {
@@ -1262,7 +1278,7 @@ background: none;
   border: 1px solid #d5d5d5;
   border-radius: 8px;
   background: #fff;
-  margin-top: 15px;
+  margin: 0;
 }
 
 .sales-search input[type="text"] {
@@ -1270,8 +1286,8 @@ background: none;
   border: 1px solid #d5d5d5;
   border-radius: 8px;
   background: #fff;
-  width: 260px;
-  margin-top: 15px;
+  width: 300px;
+  margin: 0;
 }
 
 .sales-table-wrapper {

@@ -609,7 +609,14 @@ function MechanicDashboard() {
       <header className="admin-header">
         <div className="content">
           <div className="left">
-            <img src={process.env.PUBLIC_URL + "/HeaderLogo.png"} className="admin-logo" alt="Autronicas logo" />
+            <button
+              type="button"
+              onClick={() => navigate("/select-role")}
+              style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", display: "flex" }}
+              aria-label="Go to role select"
+            >
+              <img src={process.env.PUBLIC_URL + "/HeaderLogo.png"} className="admin-logo" alt="Autronicas logo" />
+            </button>
           </div>
           <nav className="admin-nav">
             <button className="active">Sales</button>
@@ -776,6 +783,17 @@ function MechanicDashboard() {
           <div className="sales-log-header">
             <h3>Sales Log</h3>
             <div className="sales-log-actions">
+              <div className="sales-filter">
+                <label>Payment:</label>
+                <select
+                  value={salesLogPaymentType}
+                  onChange={(e) => setSalesLogPaymentType(e.target.value)}
+                >
+                  <option value="">All</option>
+                  <option value="Accounts Receivable">AR</option>
+                  <option value="Cash">Cash</option>
+                </select>
+              </div>
               <div className="sales-search">
                 <label>Search:</label>
                 <input

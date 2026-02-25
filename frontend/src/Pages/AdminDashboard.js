@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../Style.css";
 import pdfMake from "pdfmake/build/pdfmake.min";
@@ -15,18 +15,6 @@ function AdminDashboard() {
   const navigate = useNavigate();
 
   const formatJobOrderNo = (num) => String(num).padStart(4, "0");
-  const getNextAvailableJobOrderNo = (orders) => {
-    const used = new Set(
-      (orders || [])
-        .filter((o) => (o?.status || "") === "Completed")
-        .map((o) => parseInt(o?.job_order_no ?? o?.joNumber ?? 0, 10))
-        .filter((n) => Number.isInteger(n) && n > 0)
-    );
-
-    let next = 1;
-    while (used.has(next)) next += 1;
-    return next;
-  };
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [tabDirection, setTabDirection] = useState("none");
@@ -55,6 +43,7 @@ function AdminDashboard() {
   const [isJobReadOnly, setIsJobReadOnly] = useState(false);
   const [inventorySearch, setInventorySearch] = useState("");
   const [jobSearch, setJobSearch] = useState("");
+  const inventorySearchInputRef = useRef(null);
 
   // form fields
   const [jobOrderNo, setJobOrderNo] = useState(0);
@@ -76,12 +65,7 @@ function AdminDashboard() {
   const [discount, setDiscount] = useState("");
   const [grandTotal, setGrandTotal] = useState(0);
 
-  // Load data from API
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [inventoryRes, jobOrdersRes, dashboardRes] = await Promise.all([
@@ -96,7 +80,15 @@ function AdminDashboard() {
       if (jobOrdersRes.success) {
         setJobOrders(jobOrdersRes.data);
         // Reuse deleted JO numbers first (smallest available completed number).
-        setJobOrderNo(getNextAvailableJobOrderNo(jobOrdersRes.data));
+        const used = new Set(
+          (jobOrdersRes.data || [])
+            .filter((o) => (o?.status || "") === "Completed")
+            .map((o) => parseInt(o?.job_order_no ?? o?.joNumber ?? 0, 10))
+            .filter((n) => Number.isInteger(n) && n > 0)
+        );
+        let next = 1;
+        while (used.has(next)) next += 1;
+        setJobOrderNo(next);
       }
       if (dashboardRes.success) {
         setDashboardStats(dashboardRes.data);
@@ -107,7 +99,12 @@ function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Load data from API
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // compute totals
   const calculateTotals = () => {
@@ -235,12 +232,66 @@ function AdminDashboard() {
     return stock <= 0 || statusText === "out of stock";
   };
 
+  const parsePartCodeFromInput = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const parts = raw.split(" - ");
+    return (parts[0] || "").trim();
+  };
+
+  const findProductByPartValue = (value) => {
+    const code = parsePartCodeFromInput(value).toLowerCase();
+    if (!code) return null;
+    return products.find((p) => String(p.code || "").trim().toLowerCase() === code) || null;
+  };
+
+  const getPartStockValidationError = (partRow) => {
+    const product = findProductByPartValue(partRow?.description);
+    if (!product) return "";
+
+    const stock = parseFloat(product?.stocks ?? product?.quantity ?? 0) || 0;
+    const qty = parseFloat(partRow?.qty) || 0;
+    const label = `${product.code} - ${product.name}`;
+
+    if (isPartOutOfStock(product)) {
+      return `Part "${label}" is out of stock.`;
+    }
+    if (qty > stock) {
+      return `Insufficient stock for "${label}".\nAvailable: ${stock}\nRequested: ${qty}`;
+    }
+    return "";
+  };
+
+  const validatePartsStockBeforeSave = () => {
+    for (const p of parts) {
+      const isBlank =
+        !p.description?.trim() &&
+        !p.unit?.trim() &&
+        (!p.qty || p.qty === "0") &&
+        (!p.unitPrice || p.unitPrice === "0") &&
+        (!p.price || p.price === "0");
+      if (isBlank) continue;
+
+      const error = getPartStockValidationError(p);
+      if (error) {
+        setInfoDialog({
+          open: true,
+          title: "Invalid Part Quantity",
+          message: error
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
   const updatePart = (index, field, value, options = {}) => {
-    let outOfStockMessage = "";
+    let stockErrorMessage = "";
 
     setParts(prev => {
       const copy = [...prev];
       const currentRow = { ...copy[index] };
+      const previousQty = currentRow.qty;
       const wasBlank = !currentRow.description?.trim() && !currentRow.unit?.trim() && !currentRow.qty && !currentRow.unitPrice && !currentRow.price;
 
       if (field === "price" && (currentRow.price === "0" || currentRow.price === 0)) {
@@ -257,7 +308,7 @@ function AdminDashboard() {
 
         if (product) {
           if (isPartOutOfStock(product)) {
-            outOfStockMessage = `Part "${product.code} - ${product.name}" is out of stock.`;
+            stockErrorMessage = `Part "${product.code} - ${product.name}" is out of stock.`;
             currentRow.unit = "";
             currentRow.baseUnitPrice = "";
             currentRow.unitPrice = "";
@@ -270,6 +321,16 @@ function AdminDashboard() {
           const multiplier = getCustomerMultiplier(customerType);
           const unit = baseUnit * multiplier;
           const qty = parseFloat(currentRow.qty) || 0;
+
+          if (qty > (parseFloat(product.stocks ?? product.quantity ?? 0) || 0)) {
+            stockErrorMessage = `Insufficient stock for "${product.code} - ${product.name}".\nAvailable: ${product.stocks ?? product.quantity ?? 0}\nRequested: ${qty}`;
+            currentRow.qty = "";
+            currentRow.unitPrice = unit.toFixed(2);
+            currentRow.price = "";
+            copy[index] = currentRow;
+            return copy;
+          }
+
           currentRow.description = `${product.code} - ${product.name}`;
           currentRow.baseUnitPrice = String(baseUnit);
           currentRow.unitPrice = unit.toFixed(2);
@@ -298,11 +359,18 @@ function AdminDashboard() {
       // Update total if qty changes
       if (field === "qty") {
         const qty = parseFloat(value) || 0;
+        const matchedProduct = findProductByPartValue(currentRow.description);
+        const stock = parseFloat(matchedProduct?.stocks ?? matchedProduct?.quantity ?? 0) || 0;
+        if (matchedProduct && qty > stock) {
+          stockErrorMessage = `Insufficient stock for "${matchedProduct.code} - ${matchedProduct.name}".\nAvailable: ${stock}\nRequested: ${qty}`;
+          currentRow.qty = previousQty;
+        }
         const unit = parseFloat(currentRow.unitPrice);
+        const effectiveQty = parseFloat(currentRow.qty) || 0;
         if (currentRow.unitPrice === "" || Number.isNaN(unit)) {
           currentRow.price = "";
         } else {
-          currentRow.price = (qty * unit).toFixed(2);
+          currentRow.price = (effectiveQty * unit).toFixed(2);
         }
       }
 
@@ -310,11 +378,11 @@ function AdminDashboard() {
       return copy;
     });
 
-    if (outOfStockMessage) {
+    if (stockErrorMessage) {
       setInfoDialog({
         open: true,
-        title: "Out of Stock",
-        message: outOfStockMessage
+        title: "Invalid Part Quantity",
+        message: stockErrorMessage
       });
     }
   };
@@ -366,6 +434,7 @@ function AdminDashboard() {
 
   const persistJobOrder = async (statusOverride = null) => {
     if (!isJobFormValid()) return null;
+    if (!validatePartsStockBeforeSave()) return null;
 
     const orderData = {
       client: clientName,
@@ -408,7 +477,16 @@ function AdminDashboard() {
         setEditJobId(null);
         return result.data || null;
       } else {
-        alert(result.error || 'Failed to save job order');
+        const errorMessage = result.error || 'Failed to save job order';
+        if (/out of stock|insufficient stock/i.test(errorMessage)) {
+          setInfoDialog({
+            open: true,
+            title: "Invalid Part Quantity",
+            message: errorMessage
+          });
+        } else {
+          alert(errorMessage);
+        }
         return null;
       }
     } catch (error) {
@@ -1110,6 +1188,71 @@ function AdminDashboard() {
     setJobStatusFilter(nextFilter);
   };
 
+  useEffect(() => {
+    if (activeTab !== "inventory") return;
+
+    let scanBuffer = "";
+    let lastKeyTime = 0;
+    const resetMs = 100;
+
+    const isDialogOpen =
+      showModal ||
+      isEditModal ||
+      showJobOrderModal ||
+      confirmDialog.open ||
+      infoDialog.open;
+
+    if (!isDialogOpen) {
+      requestAnimationFrame(() => {
+        inventorySearchInputRef.current?.focus();
+      });
+    }
+
+    const onKeyDown = (e) => {
+      if (
+        activeTab !== "inventory" ||
+        showModal ||
+        isEditModal ||
+        showJobOrderModal ||
+        confirmDialog.open ||
+        infoDialog.open
+      ) {
+        return;
+      }
+
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      const now = Date.now();
+      if (now - lastKeyTime > resetMs) {
+        scanBuffer = "";
+      }
+      lastKeyTime = now;
+
+      if (e.key === "Enter") {
+        const scanned = scanBuffer.trim();
+        if (scanned.length > 0) {
+          setInventorySearch(scanned);
+          requestAnimationFrame(() => {
+            inventorySearchInputRef.current?.focus();
+            inventorySearchInputRef.current?.select();
+          });
+          e.preventDefault();
+        }
+        scanBuffer = "";
+        return;
+      }
+
+      if (e.key.length === 1) {
+        scanBuffer += e.key;
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [activeTab, showModal, isEditModal, showJobOrderModal, confirmDialog.open, infoDialog.open]);
+
   const formatDateMMDDYYYY = (rawValue) => {
     if (!rawValue) return "-";
     const normalized = String(rawValue).replace(" ", "T");
@@ -1148,7 +1291,14 @@ function AdminDashboard() {
       <header className="admin-header">
         <div className="content">
           <div className="left">
-            <img src={logoSrc} className="admin-logo" alt="Autronicas logo" />
+            <button
+              type="button"
+              onClick={() => navigate("/select-role")}
+              style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", display: "flex" }}
+              aria-label="Go to role select"
+            >
+              <img src={logoSrc} className="admin-logo" alt="Autronicas logo" />
+            </button>
           </div>
           <nav className="admin-nav">
             <button className={activeTab === "dashboard" ? "active" : ""} onClick={() => handleTabChange("dashboard")}>Dashboard</button>
@@ -1208,9 +1358,10 @@ function AdminDashboard() {
             </div>
             <div className="inventory-search">
               <input
+                ref={inventorySearchInputRef}
                 className="search-input"
                 type="text"
-                placeholder="Search inventory..."
+                placeholder="Search inventory or scan barcode..."
                 value={inventorySearch}
                 onChange={(e) => setInventorySearch(e.target.value)}
               />
@@ -1295,8 +1446,6 @@ function AdminDashboard() {
                     <col className="col-total" />
                     <col className="col-status" />
                     <col className="col-assigned" />
-                    <col className="col-datein" />
-                    <col className="col-daterel" />
                     <col className="col-saved" />
                     <col className="col-actions" />
                   </colgroup>
@@ -1309,15 +1458,13 @@ function AdminDashboard() {
                       <th>TOTAL PRICE</th>
                       <th>STATUS</th>
                       <th>ASSIGNED TO</th>
-                      <th>DATE IN</th>
-                      <th>DATE RELEASE</th>
                       <th>SAVED DATE/TIME</th>
                       <th>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredJobOrders.filter(o => jobStatusFilter === "All" || o.status === jobStatusFilter).length === 0 ? (
-                      <tr><td colSpan="11" className="empty-message">No job orders created yet.</td></tr>
+                      <tr><td colSpan="9" className="empty-message">No job orders created yet.</td></tr>
                     ) : (
                       filteredJobOrders
                         .filter(o => jobStatusFilter === "All" || o.status === jobStatusFilter)
@@ -1332,8 +1479,6 @@ function AdminDashboard() {
                             <span className={o.status === "Pending" ? "status-tag yellow" : o.status === "In Progress" ? "status-tag blue" : "status-tag green"}>{o.status}</span>
                           </td>
                           <td>{o.assignedTo || o.assigned_to}</td>
-                          <td>{formatDateMMDDYYYY(o.dateIn || o.date)}</td>
-                          <td>{formatDateMMDDYYYY(o.dateRelease || o.date_release)}</td>
                           <td>{formatSavedDateTime(o)}</td>
                           <td className="actions">
                             {o.status === "Completed" ? (
@@ -1553,7 +1698,7 @@ function AdminDashboard() {
                 <h2>{infoDialog.title}</h2>
               </div>
               <div className="product-modal-body">
-                <p>{infoDialog.message}</p>
+                <p style={{ whiteSpace: "pre-line" }}>{infoDialog.message}</p>
               </div>
               <div className="product-modal-footer modal-actions">
                 <button className="save" onClick={closeInfoDialog}>OK</button>

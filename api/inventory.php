@@ -10,10 +10,25 @@ requireAuth();
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+function syncInventoryStatuses($pdo) {
+    $stmt = $pdo->prepare("
+        UPDATE inventory
+        SET status = CASE
+            WHEN quantity <= 0 THEN 'Out of Stock'
+            WHEN min_quantity > 0 AND quantity <= min_quantity THEN 'Low Stock'
+            ELSE 'In Stock'
+        END
+    ");
+    $stmt->execute();
+}
+
 try {
     switch ($method) {
 
         case 'GET':
+            // Ensure persisted status matches actual quantity thresholds.
+            syncInventoryStatuses($pdo);
+
             // Get all inventory items
             $stmt = $pdo->query("SELECT 
                     i.id,

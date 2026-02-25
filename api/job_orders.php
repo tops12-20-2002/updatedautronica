@@ -49,12 +49,12 @@ function deductInventoryForParts($pdo, $parts) {
             $stmt = $pdo->prepare("
                 UPDATE inventory
                 SET
-                    quantity = GREATEST(quantity - ?, 0),
                     status = CASE
-                        WHEN (quantity - ?) <= 0 THEN 'Out of Stock'
-                        WHEN min_quantity > 0 AND (quantity - ?) <= min_quantity THEN 'Low Stock'
+                        WHEN GREATEST(quantity - ?, 0) <= 0 THEN 'Out of Stock'
+                        WHEN min_quantity > 0 AND GREATEST(quantity - ?, 0) <= min_quantity THEN 'Low Stock'
                         ELSE 'In Stock'
-                    END
+                    END,
+                    quantity = GREATEST(quantity - ?, 0)
                 WHERE code = ?
             ");
             $stmt->execute([$qty, $qty, $qty, $code]);
@@ -63,12 +63,12 @@ function deductInventoryForParts($pdo, $parts) {
             $stmt = $pdo->prepare("
                 UPDATE inventory
                 SET
-                    quantity = GREATEST(quantity - ?, 0),
                     status = CASE
-                        WHEN (quantity - ?) <= 0 THEN 'Out of Stock'
-                        WHEN min_quantity > 0 AND (quantity - ?) <= min_quantity THEN 'Low Stock'
+                        WHEN GREATEST(quantity - ?, 0) <= 0 THEN 'Out of Stock'
+                        WHEN min_quantity > 0 AND GREATEST(quantity - ?, 0) <= min_quantity THEN 'Low Stock'
                         ELSE 'In Stock'
-                    END
+                    END,
+                    quantity = GREATEST(quantity - ?, 0)
                 WHERE description = ?
             ");
             $stmt->execute([$qty, $qty, $qty, $description]);
@@ -93,12 +93,12 @@ function restoreInventoryForParts($pdo, $parts) {
             $stmt = $pdo->prepare("
                 UPDATE inventory
                 SET
-                    quantity = quantity + ?,
                     status = CASE
                         WHEN (quantity + ?) <= 0 THEN 'Out of Stock'
                         WHEN min_quantity > 0 AND (quantity + ?) <= min_quantity THEN 'Low Stock'
                         ELSE 'In Stock'
-                    END
+                    END,
+                    quantity = quantity + ?
                 WHERE code = ?
             ");
             $stmt->execute([$qty, $qty, $qty, $code]);
@@ -107,15 +107,55 @@ function restoreInventoryForParts($pdo, $parts) {
             $stmt = $pdo->prepare("
                 UPDATE inventory
                 SET
-                    quantity = quantity + ?,
                     status = CASE
                         WHEN (quantity + ?) <= 0 THEN 'Out of Stock'
                         WHEN min_quantity > 0 AND (quantity + ?) <= min_quantity THEN 'Low Stock'
                         ELSE 'In Stock'
-                    END
+                    END,
+                    quantity = quantity + ?
                 WHERE description = ?
             ");
             $stmt->execute([$qty, $qty, $qty, $description]);
+        }
+    }
+}
+
+function validatePartStockForCompletion($pdo, $parts) {
+    foreach ($parts as $part) {
+        $description = trim($part['description'] ?? '');
+        if ($description === '') continue;
+
+        $qty = intval($part['qty'] ?? $part['quantity'] ?? 0);
+        if ($qty <= 0) continue;
+
+        $code = trim($part['code'] ?? '');
+        if ($code === '') {
+            $code = parseInventoryCodeFromDescription($description);
+        }
+
+        if ($code !== '') {
+            $stmt = $pdo->prepare("SELECT code, description, quantity, status FROM inventory WHERE code = ? LIMIT 1");
+            $stmt->execute([$code]);
+        } else {
+            $stmt = $pdo->prepare("SELECT code, description, quantity, status FROM inventory WHERE description = ? LIMIT 1");
+            $stmt->execute([$description]);
+        }
+
+        $item = $stmt->fetch();
+        if (!$item) {
+            // Keep existing behavior for non-inventory free-text parts.
+            continue;
+        }
+
+        $available = intval($item['quantity'] ?? 0);
+        $status = strtolower(trim($item['status'] ?? ''));
+        $label = trim(($item['code'] ?? '') . ' - ' . ($item['description'] ?? ''), ' -');
+
+        if ($available <= 0 || $status === 'out of stock') {
+            throw new Exception('Part "' . $label . '" is out of stock.');
+        }
+        if ($qty > $available) {
+            throw new Exception("Insufficient stock for \"{$label}\".\nAvailable: {$available}\nRequested: {$qty}");
         }
     }
 }
@@ -237,6 +277,10 @@ try {
             if (empty($clientName)) {
                 sendValidationError('Client name is required');
             }
+
+            if ($status === 'Completed') {
+                validatePartStockForCompletion($pdo, $parts);
+            }
             
             // Start transaction
             $pdo->beginTransaction();
@@ -333,6 +377,10 @@ try {
             $subtotal = floatval($data['subtotal'] ?? 0);
             $discount = floatval($data['discount'] ?? 0);
             $total = floatval($data['total'] ?? $data['total_amount'] ?? 0);
+
+            if ($status === 'Completed') {
+                validatePartStockForCompletion($pdo, $parts);
+            }
             
             // Start transaction
             $pdo->beginTransaction();
