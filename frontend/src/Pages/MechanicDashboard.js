@@ -470,13 +470,30 @@ function MechanicDashboard() {
         if (getPaymentType(order) === "Accounts Receivable") {
           acc.arSales += totals.totalAmount;
           acc.arProfit += totals.profit;
+          acc.arService += totals.totalLabor;
+          acc.arParts += totals.totalPartsPrice;
+          acc.arUnitPrice += totals.unitPriceTotal;
         } else {
           acc.cashSales += totals.totalAmount;
           acc.cashProfit += totals.profit;
+          acc.cashService += totals.totalLabor;
+          acc.cashParts += totals.totalPartsPrice;
+          acc.cashUnitPrice += totals.unitPriceTotal;
         }
         return acc;
       },
-      { arSales: 0, arProfit: 0, cashSales: 0, cashProfit: 0 }
+      {
+        arSales: 0,
+        arProfit: 0,
+        arService: 0,
+        arParts: 0,
+        arUnitPrice: 0,
+        cashSales: 0,
+        cashProfit: 0,
+        cashService: 0,
+        cashParts: 0,
+        cashUnitPrice: 0
+      }
     );
   };
 
@@ -506,9 +523,15 @@ function MechanicDashboard() {
 
   const totalSalesByDate = salesByDate.reduce((sum, o) => sum + computeOrderTotals(o).totalAmount, 0);
   const totalProfitByDate = salesByDate.reduce((sum, o) => sum + computeOrderTotals(o).profit, 0);
+  const totalServiceByDate = salesByDate.reduce((sum, o) => sum + computeOrderTotals(o).totalLabor, 0);
+  const totalPartsByDate = salesByDate.reduce((sum, o) => sum + computeOrderTotals(o).totalPartsPrice, 0);
+  const totalUnitPriceByDate = salesByDate.reduce((sum, o) => sum + computeOrderTotals(o).unitPriceTotal, 0);
 
   const totalSalesByRange = salesByRange.reduce((sum, o) => sum + computeOrderTotals(o).totalAmount, 0);
   const totalProfitByRange = salesByRange.reduce((sum, o) => sum + computeOrderTotals(o).profit, 0);
+  const totalServiceByRange = salesByRange.reduce((sum, o) => sum + computeOrderTotals(o).totalLabor, 0);
+  const totalPartsByRange = salesByRange.reduce((sum, o) => sum + computeOrderTotals(o).totalPartsPrice, 0);
+  const totalUnitPriceByRange = salesByRange.reduce((sum, o) => sum + computeOrderTotals(o).unitPriceTotal, 0);
   const arCashByDate = arCashDate
     ? completedOrders.filter((o) => toDateKey(getOrderDate(o)) === arCashDate)
     : [];
@@ -522,6 +545,36 @@ function MechanicDashboard() {
 
   const dateByPaymentType = summarizeByPaymentType(arCashByDate);
   const rangeByPaymentType = summarizeByPaymentType(arCashByRange);
+  const selectedDateSales = datePaymentView === "Accounts Receivable"
+    ? dateByPaymentType.arSales
+    : dateByPaymentType.cashSales;
+  const selectedDateProfit = datePaymentView === "Accounts Receivable"
+    ? dateByPaymentType.arProfit
+    : dateByPaymentType.cashProfit;
+  const selectedDateService = datePaymentView === "Accounts Receivable"
+    ? dateByPaymentType.arService
+    : dateByPaymentType.cashService;
+  const selectedDateParts = datePaymentView === "Accounts Receivable"
+    ? dateByPaymentType.arParts
+    : dateByPaymentType.cashParts;
+  const selectedDateUnitPrice = datePaymentView === "Accounts Receivable"
+    ? dateByPaymentType.arUnitPrice
+    : dateByPaymentType.cashUnitPrice;
+  const selectedRangeSales = rangePaymentView === "Accounts Receivable"
+    ? rangeByPaymentType.arSales
+    : rangeByPaymentType.cashSales;
+  const selectedRangeProfit = rangePaymentView === "Accounts Receivable"
+    ? rangeByPaymentType.arProfit
+    : rangeByPaymentType.cashProfit;
+  const selectedRangeService = rangePaymentView === "Accounts Receivable"
+    ? rangeByPaymentType.arService
+    : rangeByPaymentType.cashService;
+  const selectedRangeParts = rangePaymentView === "Accounts Receivable"
+    ? rangeByPaymentType.arParts
+    : rangeByPaymentType.cashParts;
+  const selectedRangeUnitPrice = rangePaymentView === "Accounts Receivable"
+    ? rangeByPaymentType.arUnitPrice
+    : rangeByPaymentType.cashUnitPrice;
 
   const filteredSalesOrders = salesLogStartDate && salesLogEndDate
     ? completedOrders.filter((o) => {
@@ -651,6 +704,9 @@ function MechanicDashboard() {
               <p>Showing sales for: {salesDate || "-"}</p>
               <p>Total Sales: ₱{totalSalesByDate.toFixed(2)}</p>
               <p>Total Profit: ₱{totalProfitByDate.toFixed(2)}</p>
+              <p>Total Service: PHP {totalServiceByDate.toFixed(2)}</p>
+              <p>Total Parts: PHP {totalPartsByDate.toFixed(2)}</p>
+              <p>Total Unit Price: PHP {totalUnitPriceByDate.toFixed(2)}</p>
             </div>
             <div className="sales-card">
               <h4>Sales by Date Range</h4>
@@ -684,6 +740,9 @@ function MechanicDashboard() {
               </div>
               <p>Total: ₱{totalSalesByRange.toFixed(2)}</p>
               <p>Total Profit: ₱{totalProfitByRange.toFixed(2)}</p>
+              <p>Total Service: PHP {totalServiceByRange.toFixed(2)}</p>
+              <p>Total Parts: PHP {totalPartsByRange.toFixed(2)}</p>
+              <p>Total Unit Price: PHP {totalUnitPriceByRange.toFixed(2)}</p>
             </div>
             <div className="sales-card">
               <div className="sales-card-header">
@@ -720,17 +779,11 @@ function MechanicDashboard() {
                 }}
               />
               <p>Showing for: {arCashDate || "-"}</p>
-              {datePaymentView === "Accounts Receivable" ? (
-                <>
-                  <p>AR Sales: PHP {dateByPaymentType.arSales.toFixed(2)}</p>
-                  <p>AR Profit: PHP {dateByPaymentType.arProfit.toFixed(2)}</p>
-                </>
-              ) : (
-                <>
-                  <p>Cash Sales: PHP {dateByPaymentType.cashSales.toFixed(2)}</p>
-                  <p>Cash Profit: PHP {dateByPaymentType.cashProfit.toFixed(2)}</p>
-                </>
-              )}
+              <p>{datePaymentView === "Accounts Receivable" ? "AR" : "Cash"} Sales: PHP {selectedDateSales.toFixed(2)}</p>
+              <p>{datePaymentView === "Accounts Receivable" ? "AR" : "Cash"} Profit: PHP {selectedDateProfit.toFixed(2)}</p>
+              <p>Total Service: PHP {selectedDateService.toFixed(2)}</p>
+              <p>Total Parts: PHP {selectedDateParts.toFixed(2)}</p>
+              <p>Total Unit Price: PHP {selectedDateUnitPrice.toFixed(2)}</p>
             </div>
             <div className="sales-card">
               <div className="sales-card-header">
@@ -765,17 +818,11 @@ function MechanicDashboard() {
                   }}
                 />
               </div>
-              {rangePaymentView === "Accounts Receivable" ? (
-                <>
-                  <p>AR Sales: PHP {rangeByPaymentType.arSales.toFixed(2)}</p>
-                  <p>AR Profit: PHP {rangeByPaymentType.arProfit.toFixed(2)}</p>
-                </>
-              ) : (
-                <>
-                  <p>Cash Sales: PHP {rangeByPaymentType.cashSales.toFixed(2)}</p>
-                  <p>Cash Profit: PHP {rangeByPaymentType.cashProfit.toFixed(2)}</p>
-                </>
-              )}
+              <p>{rangePaymentView === "Accounts Receivable" ? "AR" : "Cash"} Sales: PHP {selectedRangeSales.toFixed(2)}</p>
+              <p>{rangePaymentView === "Accounts Receivable" ? "AR" : "Cash"} Profit: PHP {selectedRangeProfit.toFixed(2)}</p>
+              <p>Total Service: PHP {selectedRangeService.toFixed(2)}</p>
+              <p>Total Parts: PHP {selectedRangeParts.toFixed(2)}</p>
+              <p>Total Unit Price: PHP {selectedRangeUnitPrice.toFixed(2)}</p>
             </div>
           </div>
           
